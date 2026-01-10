@@ -26,9 +26,6 @@ We prioritize:
 
 ## Project intent
 
-This project is a **junior ML Engineer / MLOps portfolio system**, not a demo notebook.
-
-That means:
 - offline pipelines must be reproducible,
 - online services must be observable and safe,
 - tradeoffs must be documented.
