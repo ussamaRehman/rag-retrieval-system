@@ -33,7 +33,6 @@ Build a **production-grade Retrieval-Augmented Generation (RAG) system** that de
 
 ---
 
-
 ---
 
 ## Success criteria (Definition of Done)
