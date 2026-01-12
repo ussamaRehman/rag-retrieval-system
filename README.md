@@ -37,7 +37,14 @@ Notes:
 - Unit tests do NOT download models (they use a fake embedder).
 - Model downloads (if needed) happen during the offline indexing step (`build_index.py`).
 
-### Manual sanity check (BM25 + Dense)
+### Manual sanity check (BM25) — lightweight
 ```sh
-uv run python -c "from src.rag.chunking import chunk_text; from src.rag.bm25 import BM25Retriever; from src.rag.dense import DenseRetriever; text='Refunds are issued within five days. Contact support to get your money back.'; chunks=chunk_text(text,'doc-1',chunk_size=40,overlap=5); bm=BM25Retriever(chunks); dn=DenseRetriever(chunks, strict=False); print('bm25', [c['chunk_id'] for c in bm.search('refund', top_k=2)]); print('dense', [c['chunk_id'] for c in dn.search('get my money back', top_k=2)])"
+uv run python -c "from src.rag.chunking import chunk_text; from src.rag.bm25 import BM25Retriever; text='Refunds are issued within five days. Contact support to get your money back.'; chunks=chunk_text(text,'doc-1',chunk_size=40,overlap=5); bm=BM25Retriever(chunks); print('bm25', [c['chunk_id'] for c in bm.search('refund', top_k=2)])"
+```
+
+### Optional manual sanity check (Dense) — may download/load model
+This can be heavy and may download model weights.
+
+```sh
+uv run python -c "from src.rag.chunking import chunk_text; from src.rag.dense import DenseRetriever; text='Refunds are issued within five days. Contact support to get your money back.'; chunks=chunk_text(text,'doc-1',chunk_size=40,overlap=5); dn=DenseRetriever(chunks, strict=False); print('dense', [c['chunk_id'] for c in dn.search('get my money back', top_k=2)])"
 ```
