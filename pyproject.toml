@@ -6,5 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "pytest",
+    "numpy",
     "rank-bm25",
+    "sentence-transformers",
 ]
