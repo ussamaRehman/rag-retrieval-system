@@ -23,5 +23,21 @@ uv sync
 
 ### Tests
 ```sh
-pytest
+uv run pytest -q
+```
+
+### Install troubleshooting
+`sentence-transformers` pulls heavy deps (PyTorch), and `uv sync` may time out on slow connections.
+
+```sh
+UV_HTTP_TIMEOUT=120 uv sync
+```
+
+Notes:
+- Unit tests do NOT download models (they use a fake embedder).
+- Model downloads (if needed) happen during the offline indexing step (`build_index.py`).
+
+### Manual sanity check (BM25 + Dense)
+```sh
+uv run python -c "from src.rag.chunking import chunk_text; from src.rag.bm25 import BM25Retriever; from src.rag.dense import DenseRetriever; text='Refunds are issued within five days. Contact support to get your money back.'; chunks=chunk_text(text,'doc-1',chunk_size=40,overlap=5); bm=BM25Retriever(chunks); dn=DenseRetriever(chunks, strict=False); print('bm25', [c['chunk_id'] for c in bm.search('refund', top_k=2)]); print('dense', [c['chunk_id'] for c in dn.search('get my money back', top_k=2)])"
 ```
