@@ -13,12 +13,12 @@ from sentence_transformers import SentenceTransformer
 
 DEFAULT_MODEL_NAME = "all-MiniLM-L6-v2"
 EVAL_SET = [
-    {"query": "refund policy", "expected_doc_id": "refunds"},
-    {"query": "shipping times", "expected_doc_id": "shipping"},
-    {"query": "reset my password", "expected_doc_id": "account"},
-    {"query": "contact support", "expected_doc_id": "support"},
-    {"query": "pricing tiers", "expected_doc_id": "pricing"},
-    {"query": "data retention", "expected_doc_id": "security"},
+    {"query": "get my money back", "expected_doc_id": "refund_policy"},
+    {"query": "returns window", "expected_doc_id": "refund_policy"},
+    {"query": "delivery time", "expected_doc_id": "shipping_policy"},
+    {"query": "shipping status", "expected_doc_id": "shipping_policy"},
+    {"query": "data retention policy", "expected_doc_id": "privacy_policy"},
+    {"query": "erase my data", "expected_doc_id": "privacy_policy"},
 ]
 
 
