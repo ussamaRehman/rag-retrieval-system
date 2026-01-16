@@ -5,8 +5,13 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "pytest",
+    "fastapi",
+    "httpx",
     "numpy",
+    "prometheus-client",
+    "pydantic-settings",
+    "pytest",
     "rank-bm25",
     "sentence-transformers",
+    "uvicorn",
 ]
