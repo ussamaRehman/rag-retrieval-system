@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from uuid import uuid4
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, generate_latest
 
 from src.app.errors import add_exception_handlers
+from src.app.middleware import add_middlewares
 from src.app.retrieval_service import RetrievalService
 from src.app.schemas import HealthResponse, PredictBatchRequest, PredictRequest, PredictResponse
 from src.app.settings import Settings
@@ -39,16 +39,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="RAG Retrieval API", version=settings.api_version)
     app.state.retrieval_service = service
+    app.state.settings = settings
 
     add_exception_handlers(app)
-
-    @app.middleware("http")
-    async def request_id_middleware(request: Request, call_next):
-        request_id = str(uuid4())
-        request.state.request_id = request_id
-        response = await call_next(request)
-        response.headers["X-Request-Id"] = request_id
-        return response
+    add_middlewares(app, settings)
 
     @app.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
@@ -56,6 +50,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/predict", response_model=PredictResponse)
     def predict(payload: PredictRequest, request: Request) -> PredictResponse:
+        if len(payload.query) > settings.max_query_chars:
+            raise HTTPException(
+                status_code=413,
+                detail=f"query exceeds {settings.max_query_chars} characters",
+            )
         citations = service.retrieve(payload.query, payload.mode, payload.top_k)
         answer, no_answer = _build_answer(citations)
         mode = payload.mode or service.default_mode
@@ -75,6 +74,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         queries = payload.queries
         top_k = payload.top_k
         mode = payload.mode
+        if len(queries) > settings.max_batch:
+            raise HTTPException(
+                status_code=413,
+                detail=f"batch size exceeds {settings.max_batch}",
+            )
+        for query in queries:
+            if len(query) > settings.max_query_chars:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"query exceeds {settings.max_query_chars} characters",
+                )
         responses = []
         for query in queries:
             citations = service.retrieve(query, mode, top_k)

@@ -25,15 +25,26 @@ def _error_payload(
     }
 
 
+def error_response(
+    code: str,
+    message: str,
+    request_id: str,
+    status_code: int,
+    details: Optional[Dict[str, Any]] = None,
+) -> JSONResponse:
+    payload = _error_payload(code, message, request_id, details)
+    return JSONResponse(status_code=status_code, content=payload)
+
+
 def add_exception_handlers(app) -> None:
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
-        payload = _error_payload(
+        return error_response(
             "http_error",
             str(exc.detail),
             _request_id(request),
+            exc.status_code,
         )
-        return JSONResponse(status_code=exc.status_code, content=payload)
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -47,9 +58,9 @@ def add_exception_handlers(app) -> None:
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
-        payload = _error_payload(
+        return error_response(
             "internal_error",
             "Unexpected server error.",
             _request_id(request),
+            500,
         )
-        return JSONResponse(status_code=500, content=payload)

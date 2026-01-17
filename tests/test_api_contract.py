@@ -53,3 +53,35 @@ def test_health_and_predict_contract(tmp_path: Path) -> None:
     assert payload["no_answer"] is False
     assert payload["citations"]
     assert payload["citations"][0]["doc_id"] == "refund_policy"
+
+
+def test_rate_limit_returns_429(tmp_path: Path) -> None:
+    settings = Settings(
+        index_dir=str(tmp_path),
+        rate_limit_rps=0.0,
+        rate_limit_burst=0,
+        timeout_seconds=5.0,
+    )
+    app = create_app(settings)
+    client = TestClient(app)
+
+    response = client.get("/health")
+    assert response.status_code == 429
+    payload = response.json()
+    assert payload["error"]["code"] == "rate_limited"
+
+
+def test_timeout_returns_504(tmp_path: Path) -> None:
+    settings = Settings(
+        index_dir=str(tmp_path),
+        rate_limit_rps=1000.0,
+        rate_limit_burst=1000,
+        timeout_seconds=0.0,
+    )
+    app = create_app(settings)
+    client = TestClient(app)
+
+    response = client.get("/health")
+    assert response.status_code == 504
+    payload = response.json()
+    assert payload["error"]["code"] == "timeout"
