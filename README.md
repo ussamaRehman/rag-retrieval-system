@@ -4,15 +4,15 @@ A hiring-first, production-oriented **retrieval system** for a RAG pipeline.
 Focus: deterministic chunking, BM25 + dense retrieval baselines, reproducible offline artifacts, and measurable evaluation.
 
 ## Status
-- Gate 1 (Retrieval): chunking ✅, BM25 ✅, dense ✅, index build ⏳, eval ⏳
-- API + citations: not started (out of Gate 1 scope)
+- Gate 1 (Retrieval): chunking ✅, BM25 ✅, dense ✅, index build ✅, eval ✅
+- Gate 2 (API + citations): ✅
 
 ## Modules
 - `src/rag/chunking.py`: deterministic fixed-size chunking (with overlap)
 - `src/rag/bm25.py`: BM25 retriever (strict by default, permissive optional)
 - `src/rag/dense.py`: dense retriever (MiniLM embeddings)
-- `src/rag/build_index.py`: offline index builder *(planned)*
-- `src/rag/eval_retrieval.py`: offline retrieval evaluation *(planned)*
+- `src/rag/build_index.py`: offline index builder
+- `src/rag/eval_retrieval.py`: offline retrieval evaluation
 
 ## Quickstart
 
@@ -24,6 +24,22 @@ uv sync
 ### Tests
 ```sh
 uv run pytest -q
+```
+
+### Build index (local)
+```sh
+uv run python -m src.rag.build_index --input data/raw --output artifacts/indexes/dev
+```
+
+### Run API (local)
+```sh
+RAG_INDEX_DIR=artifacts/indexes/dev uv run uvicorn src.app.main:app --port 8000
+```
+
+### Run API (Docker)
+```sh
+docker build -t rag-retrieval-system .
+docker run --rm -p 8000:8000 -v "$PWD/artifacts:/app/artifacts" -e RAG_INDEX_DIR=/app/artifacts/indexes/dev rag-retrieval-system
 ```
 
 ### Install troubleshooting
