@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, generate_latest
 
-from src.app.errors import add_exception_handlers
+from src.app.errors import add_exception_handlers, error_response
 from src.app.middleware import add_middlewares
 from src.app.retrieval_service import RetrievalService
 from src.app.schemas import HealthResponse, PredictBatchRequest, PredictRequest, PredictResponse
@@ -25,6 +26,27 @@ def _build_answer(citations: list[dict]) -> tuple[str, bool]:
     snippets = [citation["snippet"] for citation in citations[:2]]
     answer = " ".join(snippets).strip()
     return answer, False
+
+
+def _validation_error(message: str, request_id: str):
+    return error_response(
+        code="validation_error",
+        message=message,
+        request_id=request_id,
+        status_code=422,
+    )
+
+
+async def _retrieve_with_timeout(service: RetrievalService, query: str, mode: str | None, top_k: int, timeout: float):
+    try:
+        if timeout is not None and timeout >= 0:
+            return await asyncio.wait_for(
+                asyncio.to_thread(service.retrieve, query, mode, top_k),
+                timeout=timeout,
+            )
+        return await asyncio.to_thread(service.retrieve, query, mode, top_k)
+    except (asyncio.TimeoutError, TimeoutError):
+        raise TimeoutError from None
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -49,13 +71,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return HealthResponse(status="ok", versions=service.versions())
 
     @app.post("/predict", response_model=PredictResponse)
-    def predict(payload: PredictRequest, request: Request) -> PredictResponse:
+    async def predict(payload: PredictRequest, request: Request):
+        request_id = request.state.request_id
         if len(payload.query) > settings.max_query_chars:
-            raise HTTPException(
-                status_code=413,
-                detail=f"query exceeds {settings.max_query_chars} characters",
+            return _validation_error(
+                f"query exceeds {settings.max_query_chars} characters",
+                request_id,
             )
-        citations = service.retrieve(payload.query, payload.mode, payload.top_k)
+        if payload.top_k > settings.max_top_k:
+            return _validation_error(
+                f"top_k exceeds {settings.max_top_k}",
+                request_id,
+            )
+        try:
+            citations = await _retrieve_with_timeout(
+                service,
+                payload.query,
+                payload.mode,
+                payload.top_k,
+                settings.request_timeout_seconds,
+            )
+        except TimeoutError:
+            return error_response(
+                code="timeout",
+                message="Request timed out.",
+                request_id=request_id,
+                status_code=504,
+            )
         answer, no_answer = _build_answer(citations)
         mode = payload.mode or service.default_mode
         PREDICT_REQUESTS.labels(endpoint="/predict", mode=mode).inc()
@@ -64,30 +106,50 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             no_answer=no_answer,
             citations=citations,
             versions=service.versions(),
-            request_id=request.state.request_id,
+            request_id=request_id,
         )
 
     @app.post("/predict_batch", response_model=list[PredictResponse])
-    def predict_batch(
+    async def predict_batch(
         payload: PredictBatchRequest, request: Request
     ) -> list[PredictResponse]:
+        request_id = request.state.request_id
         queries = payload.queries
         top_k = payload.top_k
         mode = payload.mode
-        if len(queries) > settings.max_batch:
-            raise HTTPException(
-                status_code=413,
-                detail=f"batch size exceeds {settings.max_batch}",
+        if len(queries) > settings.max_batch_size:
+            return _validation_error(
+                f"batch size exceeds {settings.max_batch_size}",
+                request_id,
+            )
+        if top_k > settings.max_top_k:
+            return _validation_error(
+                f"top_k exceeds {settings.max_top_k}",
+                request_id,
             )
         for query in queries:
             if len(query) > settings.max_query_chars:
-                raise HTTPException(
-                    status_code=413,
-                    detail=f"query exceeds {settings.max_query_chars} characters",
+                return _validation_error(
+                    f"query exceeds {settings.max_query_chars} characters",
+                    request_id,
                 )
         responses = []
         for query in queries:
-            citations = service.retrieve(query, mode, top_k)
+            try:
+                citations = await _retrieve_with_timeout(
+                    service,
+                    query,
+                    mode,
+                    top_k,
+                    settings.request_timeout_seconds,
+                )
+            except TimeoutError:
+                return error_response(
+                    code="timeout",
+                    message="Request timed out.",
+                    request_id=request_id,
+                    status_code=504,
+                )
             answer, no_answer = _build_answer(citations)
             responses.append(
                 PredictResponse(
@@ -95,7 +157,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     no_answer=no_answer,
                     citations=citations,
                     versions=service.versions(),
-                    request_id=request.state.request_id,
+                    request_id=request_id,
                 )
             )
         PREDICT_REQUESTS.labels(

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from typing import Dict, Optional
 from uuid import uuid4
@@ -74,19 +73,7 @@ def add_middlewares(app, settings: Settings) -> None:
                 response.headers["X-Request-Id"] = request_id
                 return response
 
-        try:
-            if settings.timeout_seconds is not None and settings.timeout_seconds >= 0:
-                with anyio.fail_after(settings.timeout_seconds):
-                    response = await call_next(request)
-            else:
-                response = await call_next(request)
-        except TimeoutError:
-            response = error_response(
-                code="timeout",
-                message="Request timed out.",
-                request_id=request_id,
-                status_code=504,
-            )
+        response = await call_next(request)
         response.headers["X-Request-Id"] = request_id
         return response
 
@@ -121,17 +108,4 @@ async def _enforce_request_limits(
             status_code=413,
         )
 
-    if request.url.path == "/predict_batch" and body:
-        try:
-            payload = json.loads(body.decode("utf-8"))
-        except json.JSONDecodeError:
-            return None
-        queries = payload.get("queries")
-        if isinstance(queries, list) and len(queries) > settings.max_batch:
-            return error_response(
-                code="batch_too_large",
-                message=f"Batch size exceeds {settings.max_batch}.",
-                request_id=request_id,
-                status_code=413,
-            )
     return None

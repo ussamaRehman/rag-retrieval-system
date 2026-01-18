@@ -60,7 +60,7 @@ def test_rate_limit_returns_429(tmp_path: Path) -> None:
         index_dir=str(tmp_path),
         rate_limit_rps=0.0,
         rate_limit_burst=0,
-        timeout_seconds=5.0,
+        request_timeout_seconds=5.0,
     )
     app = create_app(settings)
     client = TestClient(app)
@@ -71,17 +71,65 @@ def test_rate_limit_returns_429(tmp_path: Path) -> None:
     assert payload["error"]["code"] == "rate_limited"
 
 
-def test_timeout_returns_504(tmp_path: Path) -> None:
+def test_query_too_long_returns_422(tmp_path: Path) -> None:
+    _write_index(tmp_path)
+    settings = Settings(index_dir=str(tmp_path), max_query_chars=5)
+    app = create_app(settings)
+    client = TestClient(app)
+
+    response = client.post("/predict", json={"query": "refunds", "top_k": 1})
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["error"]["code"] == "validation_error"
+
+
+def test_batch_too_large_returns_422(tmp_path: Path) -> None:
+    _write_index(tmp_path)
+    settings = Settings(index_dir=str(tmp_path), max_batch_size=1)
+    app = create_app(settings)
+    client = TestClient(app)
+
+    response = client.post(
+        "/predict_batch",
+        json={"queries": ["refund", "shipping"], "top_k": 1},
+    )
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["error"]["code"] == "validation_error"
+
+
+def test_top_k_too_large_returns_422(tmp_path: Path) -> None:
+    _write_index(tmp_path)
+    settings = Settings(index_dir=str(tmp_path), max_top_k=1)
+    app = create_app(settings)
+    client = TestClient(app)
+
+    response = client.post("/predict", json={"query": "refund", "top_k": 5})
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["error"]["code"] == "validation_error"
+
+
+def test_timeout_returns_504(tmp_path: Path, monkeypatch) -> None:
+    _write_index(tmp_path)
     settings = Settings(
         index_dir=str(tmp_path),
         rate_limit_rps=1000.0,
         rate_limit_burst=1000,
-        timeout_seconds=0.0,
+        request_timeout_seconds=0.01,
     )
     app = create_app(settings)
     client = TestClient(app)
 
-    response = client.get("/health")
+    def slow_retrieve(*args, **kwargs):
+        import time
+
+        time.sleep(0.1)
+        return []
+
+    monkeypatch.setattr(app.state.retrieval_service, "retrieve", slow_retrieve)
+
+    response = client.post("/predict", json={"query": "refund", "top_k": 1})
     assert response.status_code == 504
     payload = response.json()
     assert payload["error"]["code"] == "timeout"

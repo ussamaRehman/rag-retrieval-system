@@ -36,6 +36,12 @@ uv run python -m src.rag.build_index --input data/raw --output artifacts/indexes
 RAG_INDEX_DIR=artifacts/indexes/dev uv run uvicorn src.app.main:app --port 8000
 ```
 
+### API limits (env)
+- `RAG_REQUEST_TIMEOUT_SECONDS` (default 5)
+- `RAG_MAX_QUERY_CHARS` (default 2000)
+- `RAG_MAX_TOP_K` (default 20)
+- `RAG_MAX_BATCH_SIZE` (default 20)
+
 ### Run API (Docker)
 ```sh
 docker build -t rag-retrieval-system .
