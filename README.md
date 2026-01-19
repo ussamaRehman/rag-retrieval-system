@@ -1,6 +1,6 @@
 # rag-retrieval-system
 
-A hiring-first, production-oriented **retrieval system** for a RAG pipeline.
+A production-oriented **retrieval system** for a RAG pipeline.
 Focus: deterministic chunking, BM25 + dense retrieval baselines, reproducible offline artifacts, and measurable evaluation.
 
 ## Status
